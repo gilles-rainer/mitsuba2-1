@@ -523,7 +523,7 @@ class WriteXML:
                 self.copy_count[base_name] = 1
             target_path = os.path.join(abs_path, "%s%s" % (name, ext))
             copy2(filepath, target_path)
-            rel_path = os.path.relpath(target_path, self.directory)
+            rel_path = f"{subfolders[tag]}/{name}{ext}"
             self.copied_paths[filepath] = rel_path
             return rel_path
 
