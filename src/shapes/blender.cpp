@@ -1,4 +1,5 @@
 #include <mitsuba/render/mesh.h>
+#include <mitsuba/render/bsdf.h>
 #include <enoki/color.h>
 #include <array>
 
@@ -49,6 +50,64 @@ NAMESPACE_END(blender)
 
 NAMESPACE_BEGIN(mitsuba)
 
+template <typename Float, typename Spectrum>
+class BlenderMeshImpl final : public Mesh<Float, Spectrum> {
+public:
+    MTS_IMPORT_BASE(Mesh, m_name, m_to_world, m_vertex_count,
+                    m_face_count, m_vertex_positions, m_vertex_normals,
+                    m_vertex_texcoords, m_faces, m_disable_vertex_normals,
+                    m_bsdf, add_attribute, set_children)
+    MTS_IMPORT_TYPES(BSDF)
+
+    using typename Base::FloatStorage;
+    using typename Base::ScalarIndex;
+    using typename Base::ScalarSize;
+    using typename Base::InputFloat;
+    using typename Base::InputVector2f;
+    using ScalarIndex3 = std::array<ScalarIndex, 3>;
+
+    BlenderMeshImpl(const Properties &props,
+                    BSDF *bsdf,
+                    const std::vector<std::array<InputFloat, 3>> &vertices,
+                    const std::vector<std::array<InputFloat, 3>> &normals,
+                    const std::vector<InputVector2f> &uvs,
+                    const std::vector<std::vector<InputFloat>> &cols,
+                    const std::vector<std::string> &col_names,
+                    const std::vector<ScalarIndex3> &triangles,
+                    ScalarIndex vertex_ctr,
+                    bool shade_flat,
+                    bool has_uvs,
+                    bool has_cols) : Base(props) {
+
+        m_vertex_count = vertex_ctr;
+        m_disable_vertex_normals = shade_flat;
+
+        m_bsdf = bsdf;
+        m_face_count = (ScalarSize) triangles.size();
+        m_faces = ek::load_unaligned<DynamicBuffer<UInt32>>(triangles.data(), m_face_count * 3);
+
+        m_vertex_positions = ek::load_unaligned<FloatStorage>(vertices.data(), m_vertex_count * 3);
+        if (!m_disable_vertex_normals)
+            m_vertex_normals = ek::load_unaligned<FloatStorage>(normals.data(), m_vertex_count * 3);
+
+        if (has_uvs)
+            m_vertex_texcoords = ek::load_unaligned<FloatStorage>(uvs.data(), m_vertex_count * 2);
+
+        if (has_cols) {
+            for (size_t p = 0; p < cols.size(); p++)
+                add_attribute(col_names[p], 3, cols[p]);
+        }
+
+        set_children();
+
+    }
+
+    MTS_DECLARE_CLASS()
+
+};
+
+MTS_IMPLEMENT_CLASS_VARIANT(BlenderMeshImpl, Mesh)
+
 /**
 
 Blender mesh loader
@@ -65,7 +124,7 @@ public:
     MTS_IMPORT_BASE(Mesh, m_name, m_bbox, m_to_world, m_vertex_count,
                     m_face_count, m_vertex_positions, m_vertex_normals,
                     m_vertex_texcoords, m_faces, m_disable_vertex_normals, add_attribute, set_children)
-    MTS_IMPORT_TYPES()
+    MTS_IMPORT_TYPES(BSDF)
 
     using typename Base::MeshAttributeType;
     using typename Base::ScalarSize;
@@ -75,7 +134,6 @@ public:
     using typename Base::InputVector2f;
     using typename Base::InputVector3f;
     using typename Base::InputNormal3f;
-    using typename Base::FloatStorage;
 
     using ScalarIndex3 = std::array<ScalarIndex, 3>;
 
@@ -93,14 +151,13 @@ public:
                 m_name, args...);
         };
 
-        std::vector<std::string> necessary_fields = {"name", "mat_nr", "vert_count", "loop_tri_count", "loops", "loop_tris", "polys", "verts"};
+        std::vector<std::string> necessary_fields = {"name", "vert_count", "loop_tri_count", "loops", "loop_tris", "polys", "verts"};
         for (auto &s : necessary_fields) {
             if (!props.has_property(s))
                 fail("Missing property \"%s\"!", s);
         }
-
+        m_props = props;
         m_name     = props.string("name");
-        short mat_nr(props.int_("mat_nr"));
         size_t vertex_count(props.int_("vert_count"));
         size_t loop_tri_count(props.int_("loop_tri_count"));
         const blender::MLoop *loops =
@@ -112,59 +169,76 @@ public:
         const blender::MVert *verts =
             reinterpret_cast<const blender::MVert *>(props.long_("verts"));
 
-        bool has_cols = false;
+        m_has_cols = false;
         std::vector<std::pair<std::string, const blender::MLoopCol *>> cols;
         for (std::string &s : props.property_names()){
             if (s.rfind("vertex_", 0) == 0){
                 cols.push_back({s, reinterpret_cast<const blender::MLoopCol *>(props.long_(s))});
-                has_cols = true;
+                m_col_names.push_back(s);
+                m_has_cols = true;
             }
         }
 
-        bool has_uvs = props.has_property("uvs");
+        m_has_uvs = props.has_property("uvs");
         const blender::MLoopUV *uvs = nullptr;
-        if (has_uvs)
+        if (m_has_uvs)
             uvs = reinterpret_cast<const blender::MLoopUV *>(props.long_("uvs"));
         else
             Log(Warn, "Mesh %s has no texture coordinates!", m_name);
 
+        // Find all the material ids and their associated materials.
+        // TODO: same with emitters
+        m_mat_count = 0;
+        std::string mat_id = "mat_0";
+        std::vector<std::pair<std::string, ref<Object>>> objects = props.objects(false);
+        while (props.has_property(mat_id)) {
+            m_mat_count++;
+            for (auto &[name, obj] : objects) {
+                if (name == mat_id)
+                    m_bsdfs.push_back(dynamic_cast<BSDF *>(obj.get()));
+            }
+            mat_id = "mat_" + std::to_string(m_mat_count);
+        }
+
         // Determine whether the object is globally smooth or flat shaded and set the flag accordingly
         // Blender meshes can be partially smooth AND flat (e.g. with edge split modifier)
         // In this case, flat face vertices will be duplicated.
-        m_disable_vertex_normals = true;
+        m_shade_flat.resize(m_mat_count, true);
+        u_short flat_parts= m_mat_count;
         for (size_t tri_loop_id = 0; tri_loop_id < loop_tri_count; tri_loop_id++) {
             const blender::MLoopTri &tri_loop = tri_loops[tri_loop_id];
             const blender::MPoly &face        = polygons[tri_loop.poly];
-            if (blender::ME_SMOOTH & face.flag) {
+            if ((blender::ME_SMOOTH & face.flag) && m_shade_flat[face.mat_nr]) {
                 // If at least one face is smooth shaded, we need to disable face normals
                 // and duplicate the (potential) flat shaded face vertices.
-                m_disable_vertex_normals = false;
-                break;
-            }
-        }
-        // Temporary buffers for vertices, normals, etc.
-        std::vector<std::array<InputFloat, 3>> tmp_vertices; // Store as vector for alignement issues
-        std::vector<std::array<InputFloat, 3>> tmp_normals; // Same here
-        std::vector<InputVector2f> tmp_uvs;
-        std::vector<std::vector<InputFloat>> tmp_cols; // And same here
-        std::vector<ScalarIndex3> tmp_triangles;
-
-        tmp_vertices.reserve(vertex_count);
-        if (!m_disable_vertex_normals)
-            tmp_normals.reserve(vertex_count);
-        tmp_triangles.reserve(loop_tri_count);
-
-        if (has_uvs)
-            tmp_uvs.reserve(vertex_count);
-        if (has_cols) {
-            tmp_cols.reserve(cols.size());
-            for (size_t p = 0; p < cols.size(); p++) {
-                tmp_cols.push_back(std::vector<InputFloat>());
-                tmp_cols[p].reserve(3 * vertex_count);
+                m_shade_flat[face.mat_nr] = false;
+                flat_parts--;
+                if (flat_parts==0) // Stop if we have determined all parts of the mesh are not globally flat
+                    break;
             }
         }
 
-        ScalarIndex vertex_ctr = 0;
+        tmp_vertices.reserve(m_mat_count);
+        tmp_normals.reserve(m_mat_count);
+        tmp_triangles.reserve(m_mat_count);
+        tmp_uvs.reserve(m_mat_count);
+        tmp_cols.reserve(m_mat_count);
+        for (u_short i=0; i<m_mat_count; i++) {
+            tmp_vertices[i].reserve(vertex_count);
+            if (!m_shade_flat[i])
+                tmp_normals[i].reserve(vertex_count);
+            tmp_triangles[i].reserve(loop_tri_count);
+            if (m_has_uvs)
+                tmp_uvs[i].reserve(vertex_count);
+            if (m_has_cols) {
+                tmp_cols[i].reserve(cols.size());
+                for (size_t p = 0; p < cols.size(); p++) {
+                    tmp_cols[i].push_back(std::vector<InputFloat>());
+                    tmp_cols[i][p].reserve(3 * vertex_count);
+                }
+            }
+        }
+        m_vertex_ctr.reserve(m_mat_count);
 
         // Hash map key to define a unique vertex
         struct Key {
@@ -183,8 +257,7 @@ public:
                        uv != other.uv;
             }
         };
-
-        // Hash map entry
+        // Hash map entry:
         struct VertexBinding {
             Key key;
             // Index of the vertex in the vertex array
@@ -194,17 +267,15 @@ public:
         };
 
         // Hash Map to avoid adding duplicate vertices
-        std::vector<VertexBinding> vertex_map(vertex_count);
+        std::vector<std::vector<VertexBinding>> vertex_maps(m_mat_count);
+        for (u_short i=0; i<m_mat_count; i++) {
+            vertex_maps[i].reserve(vertex_count);
+        }
 
         size_t duplicates_ctr = 0;
         for (size_t tri_loop_id = 0; tri_loop_id < loop_tri_count; tri_loop_id++) {
             const blender::MLoopTri &tri_loop = tri_loops[tri_loop_id];
             const blender::MPoly &face        = polygons[tri_loop.poly];
-
-            // We only export the part of the mesh corresponding to the given
-            // material id
-            if (face.mat_nr != mat_nr)
-                continue;
 
             ScalarIndex3 triangle;
 
@@ -256,14 +327,14 @@ public:
 
                 vert_key.normal = normal;
 
-                if (has_uvs) {
+                if (m_has_uvs) {
                     const blender::MLoopUV &loop_uv = uvs[loop_index];
                     const InputVector2f uv(loop_uv.uv[0], 1.0f - loop_uv.uv[1]);
                     vert_key.uv = uv;
                 }
 
                 // Vertex index in the blender mesh is the map index
-                VertexBinding *map_entry = &vertex_map[vert_index];
+                VertexBinding *map_entry = &vertex_maps[face.mat_nr][vert_index];
                 while (vert_key != map_entry->key && map_entry->next != nullptr)
                     map_entry = map_entry->next;
 
@@ -276,59 +347,79 @@ public:
                         map_entry->next = new VertexBinding();
                         map_entry       = map_entry->next;
                     }
-                    ScalarSize vert_id = vertex_ctr++;
+                    ScalarSize vert_id = m_vertex_ctr[face.mat_nr]++;
                     map_entry->key     = vert_key;
                     map_entry->value   = vert_id;
                     map_entry->is_init = true;
                     // Add stuff to the temporary buffers
                     InputPoint3f pt = m_to_world.transform_affine(face_points[i]);
-                    tmp_vertices.push_back({pt.x(), pt.y(), pt.z()});
+                    tmp_vertices[face.mat_nr].push_back({pt.x(), pt.y(), pt.z()});
                     if (!m_disable_vertex_normals)
-                        tmp_normals.push_back({normal.x(), normal.y(), normal.z()});
-                    if (has_uvs)
-                        tmp_uvs.push_back(vert_key.uv);
-                    if (has_cols) {
+                        tmp_normals[face.mat_nr].push_back({normal.x(), normal.y(), normal.z()});
+                    if (m_has_uvs)
+                        tmp_uvs[face.mat_nr].push_back(vert_key.uv);
+                    if (m_has_cols) {
                         for (size_t p = 0; p < cols.size(); p++) {
                             const blender::MLoopCol &loop_col = cols[p].second[loop_index];
                             // Blender stores vertex colors in sRGB space
-                            tmp_cols[p].push_back(ek::srgb_to_linear(loop_col.r * color_factor));
-                            tmp_cols[p].push_back(ek::srgb_to_linear(loop_col.g * color_factor));
-                            tmp_cols[p].push_back(ek::srgb_to_linear(loop_col.b * color_factor));
+                            tmp_cols[face.mat_nr][p].push_back(ek::srgb_to_linear(loop_col.r * color_factor));
+                            tmp_cols[face.mat_nr][p].push_back(ek::srgb_to_linear(loop_col.g * color_factor));
+                            tmp_cols[face.mat_nr][p].push_back(ek::srgb_to_linear(loop_col.b * color_factor));
                         }
                     }
                     triangle[i] = vert_id;
                 }
             }
-            tmp_triangles.push_back(triangle);
+            tmp_triangles[face.mat_nr].push_back(triangle);
         }
         Log(Info, "%s: Removed %i duplicates", m_name, duplicates_ctr);
 
-        if (vertex_ctr == 0)
-            return;
+    }
 
-        m_face_count = (ScalarSize) tmp_triangles.size();
-        m_faces = ek::load_unaligned<DynamicBuffer<UInt32>>(tmp_triangles.data(), m_face_count * 3);
-
-        m_vertex_count = vertex_ctr;
-        m_vertex_positions = ek::load_unaligned<FloatStorage>(tmp_vertices.data(), m_vertex_count * 3);
-        if (!m_disable_vertex_normals)
-            m_vertex_normals = ek::load_unaligned<FloatStorage>(tmp_normals.data(), m_vertex_count * 3);
-
-        if (has_uvs)
-            m_vertex_texcoords = ek::load_unaligned<FloatStorage>(tmp_uvs.data(), m_vertex_count * 2);
-
-        if (has_cols) {
-            for (size_t p = 0; p < cols.size(); p++)
-                add_attribute(cols[p].first, 3, tmp_cols[p]);
+    // Split this object into multiple sub meshes
+    std::vector<ref<Object>> expand() const override {
+        std::vector<ref<Object>> meshes;
+        for (u_short i=0; i<m_mat_count; i++) {
+            if (m_vertex_ctr[i] > 0) {
+                meshes.push_back(ref<Object>(new BlenderMeshImpl<Float, Spectrum>(m_props,
+                                                                m_bsdfs[i],
+                                                                tmp_vertices[i],
+                                                                tmp_normals[i],
+                                                                tmp_uvs[i],
+                                                                tmp_cols[i],
+                                                                m_col_names,
+                                                                tmp_triangles[i],
+                                                                m_vertex_ctr[i],
+                                                                m_shade_flat[i],
+                                                                m_has_uvs,
+                                                                m_has_cols)));
+            }
         }
-
-        set_children();
-
+        return meshes;
     }
 
     MTS_DECLARE_CLASS()
+
+private:
+    u_short m_mat_count;
+    std::vector<BSDF *> m_bsdfs;
+    Properties m_props;
+    // Buffers for storing vertices, normals, etc.
+    std::vector<std::vector<std::array<InputFloat, 3>>> tmp_vertices; // Store as vector for alignement issues
+    std::vector<std::vector<std::array<InputFloat, 3>>> tmp_normals; // Same here
+    std::vector<std::vector<InputVector2f>> tmp_uvs;
+    std::vector<std::vector<std::vector<InputFloat>>> tmp_cols; // And same here
+    std::vector<std::vector<ScalarIndex3>> tmp_triangles;
+    std::vector<ScalarIndex> m_vertex_ctr;
+    std::vector<std::string> m_col_names;
+    // Smooth/flat shading per sub-mesh
+    std::vector<bool> m_shade_flat;
+    bool m_has_cols;
+    bool m_has_uvs;
 };
 
 MTS_IMPLEMENT_CLASS_VARIANT(BlenderMesh, Mesh)
 MTS_EXPORT_PLUGIN(BlenderMesh, "Blender Mesh")
+
+
 NAMESPACE_END(mitsuba)
