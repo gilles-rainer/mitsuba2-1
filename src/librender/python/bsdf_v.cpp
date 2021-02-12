@@ -67,6 +67,8 @@ MTS_PY_EXPORT(BSDF) {
             "ctx"_a, "si"_a, "sample1"_a, "sample2"_a, "active"_a = true, D(BSDF, sample))
         .def("eval", vectorize(&BSDF::eval),
             "ctx"_a, "si"_a, "wo"_a, "active"_a = true, D(BSDF, eval))
+        //.def("get_alpha", vectorize(&BSDF::get_alpha), 
+        //    "si"_a, "active"_a = true, D(BSDF, eval))
         .def("pdf", vectorize(&BSDF::pdf),
             "ctx"_a, "si"_a, "wo"_a, "active"_a = true, D(BSDF, pdf))
         .def("eval_null_transmission", vectorize(&BSDF::eval_null_transmission),
@@ -78,6 +80,7 @@ MTS_PY_EXPORT(BSDF) {
         .def_method(BSDF, needs_differentials, "active"_a = true)
         .def_method(BSDF, component_count, "active"_a = true)
         .def_method(BSDF, id)
+        .def_method(BSDF, get_alpha)
         .def_readwrite("m_flags",      &PyBSDF::m_flags)
         .def_readwrite("m_components", &PyBSDF::m_components)
         .def("__repr__", &BSDF::to_string)
@@ -96,6 +99,10 @@ MTS_PY_EXPORT(BSDF) {
                                 Mask active) { return ptr->sample(ctx, si, s1, s2, active); }),
             "ptr"_a, "ctx"_a, "si"_a, "sample1"_a, "sample2"_a, "active"_a = true,
             D(BSDF, sample));
+        bsdf.def_static(
+            "get_alpha_vec",
+            vectorize([](const BSDFPtr &ptr, const SurfaceInteraction3f &si) {return ptr->get_alpha(si);}),
+            "ptr"_a, "si"_a, D(BSDF, get_alpha));
         bsdf.def_static(
             "eval_vec",
             vectorize([](const BSDFPtr &ptr, const BSDFContext &ctx,

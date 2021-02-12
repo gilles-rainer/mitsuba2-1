@@ -413,6 +413,10 @@ public:
     //! @{ \name BSDF property accessors (components, flags, etc)
     // -----------------------------------------------------------------------
 
+	// For deep learning to access BSDF parameters
+	virtual Float get_alpha(const SurfaceInteraction3f &si) const { return 0.f; }
+	
+	
     /// Flags for all components combined.
     uint32_t flags(Mask /*active*/ = true) const { return m_flags; }
 
@@ -509,8 +513,8 @@ NAMESPACE_END(mitsuba)
 //! @{ \name Enoki accessors for dynamic vectorization
 // -----------------------------------------------------------------------
 
-ENOKI_STRUCT_SUPPORT(mitsuba::BSDFSample3, wo, pdf, eta,
-                     sampled_type, sampled_component)
+ENOKI_STRUCT_SUPPORT(mitsuba::BSDFSample3, wo, pdf, eta, sampled_type,
+                     sampled_component)
 
 //! @}
 // -----------------------------------------------------------------------
@@ -520,10 +524,11 @@ ENOKI_STRUCT_SUPPORT(mitsuba::BSDFSample3, wo, pdf, eta,
 // -----------------------------------------------------------------------
 
 ENOKI_CALL_SUPPORT_TEMPLATE_BEGIN(mitsuba::BSDF)
-    ENOKI_CALL_SUPPORT_METHOD(sample)
-    ENOKI_CALL_SUPPORT_METHOD(eval)
-    ENOKI_CALL_SUPPORT_METHOD(eval_null_transmission)
-    ENOKI_CALL_SUPPORT_METHOD(pdf)
+ENOKI_CALL_SUPPORT_METHOD(sample)
+ENOKI_CALL_SUPPORT_METHOD(eval)
+ENOKI_CALL_SUPPORT_METHOD(eval_null_transmission)
+ENOKI_CALL_SUPPORT_METHOD(pdf)
+ENOKI_CALL_SUPPORT_METHOD(get_alpha)
     ENOKI_CALL_SUPPORT_GETTER(flags, m_flags)
 
     auto needs_differentials() const {

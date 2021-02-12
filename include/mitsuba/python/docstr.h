@@ -502,6 +502,8 @@ Parameter ``si``:
 
 static const char *__doc_mitsuba_BSDF_flags = R"doc(Flags for all components combined.)doc";
 
+static const char *__doc_mitsuba_BSDF_get_alpha = R"doc(Returns the roughness.)doc";
+
 static const char *__doc_mitsuba_BSDF_flags_2 = R"doc(Flags for a specific component of this BSDF.)doc";
 
 static const char *__doc_mitsuba_BSDF_id = R"doc(Return a string identifier)doc";
