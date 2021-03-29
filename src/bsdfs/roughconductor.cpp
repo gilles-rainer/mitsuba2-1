@@ -421,6 +421,46 @@ public:
         return oss.str();
     }
 
+    Color3f get_sg_bsdf(SurfaceInteraction3f &si) const {
+
+        Vector3f wo = reflect(si.wi);
+
+        Float cos_theta_i = Frame3f::cos_theta(si.wi),
+              cos_theta_o = Frame3f::cos_theta(wo);
+
+        Mask active = cos_theta_i > 0.f && cos_theta_o > 0.f; 
+
+        // Calculate the half-direction vector
+        Vector3f H = normalize(wo + si.wi);
+
+        MicrofacetDistribution distr(m_type, m_alpha_u->eval_1(si, active),
+                                     m_alpha_v->eval_1(si, active),
+                                     m_sample_visible);
+
+        // Evaluate Smith's shadow-masking function
+        Float G = distr.G(si.wi, wo, H);
+
+        // Evaluate the full microfacet model (except Fresnel)
+        UnpolarizedSpectrum result = G / (4.f * Frame3f::cos_theta(si.wi));
+
+        // Evaluate the Fresnel factor
+        Complex<UnpolarizedSpectrum> eta_c(m_eta->eval(si, active),
+                                           m_k->eval(si, active));
+
+        Spectrum F = fresnel_conductor(UnpolarizedSpectrum(dot(si.wi, H)), eta_c);
+
+        /* If requested, include the specular reflectance component */
+        if (m_specular_reflectance)
+            result *= m_specular_reflectance->eval(si, active);
+
+        return (F * result) & active;
+    }
+
+    Float get_alpha(SurfaceInteraction3f &si) const {
+        return m_alpha_u->eval_1(si, true);
+    }
+
+
     MTS_DECLARE_CLASS()
 private:
     /// Specifies the type of microfacet distribution

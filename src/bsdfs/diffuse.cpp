@@ -138,6 +138,13 @@ public:
         callback->put_object("reflectance", m_reflectance.get());
     }
 
+    Color3f get_sg_bsdf(SurfaceInteraction3f &si) const {
+        return math::InvPi<Float> * m_reflectance->eval(si, true);
+    }
+
+    Float get_alpha(SurfaceInteraction3f &si) const { return 1.0f; }
+
+
     std::string to_string() const override {
         std::ostringstream oss;
         oss << "SmoothDiffuse[" << std::endl

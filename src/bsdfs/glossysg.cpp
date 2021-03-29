@@ -50,7 +50,7 @@ public:
         m_components.push_back(m_flags);
     }
 	
-	Float get_alpha(const SurfaceInteraction3f &si) const override {return m_alpha_u->eval_1(si, true);}
+	Float get_alpha(SurfaceInteraction3f &si) const {return m_alpha_u->eval_1(si, true);}
 
     std::pair<BSDFSample3f, Spectrum> sample(const BSDFContext &ctx,
                                              const SurfaceInteraction3f &si,

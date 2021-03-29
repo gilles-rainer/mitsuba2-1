@@ -1,5 +1,6 @@
 #include <mitsuba/render/integrator.h>
 #include <mitsuba/render/records.h>
+#include <mitsuba/render/bsdf.h>
 
 NAMESPACE_BEGIN(mitsuba)
 
@@ -77,6 +78,9 @@ public:
         dPdV,
         dUVdx,
         dUVdy,
+        SGBSDF,
+        Roughness,
+        wi,
         IntegratorRGBA
     };
 
@@ -129,6 +133,23 @@ public:
                 m_aov_types.push_back(Type::dUVdy);
                 m_aov_names.push_back(item[0] + ".U");
                 m_aov_names.push_back(item[0] + ".V");
+
+            } else if (item[1] == "SGBSDF") {
+                m_aov_types.push_back(Type::SGBSDF);
+                m_aov_names.push_back(item[0] + ".X");
+                m_aov_names.push_back(item[0] + ".Y");
+                m_aov_names.push_back(item[0] + ".Z");
+            } else if (item[1] == "Roughness") {
+                m_aov_types.push_back(Type::Roughness);
+                m_aov_names.push_back(item[0]);
+                m_aov_names.push_back(item[0] + ".Z");
+            } else if (item[1] == "wi") {
+                    m_aov_types.push_back(Type::wi);
+                    m_aov_names.push_back(item[0] + ".X");
+                    m_aov_names.push_back(item[0] + ".Y");
+                    m_aov_names.push_back(item[0] + ".Z");
+
+
             } else {
                 Throw("Invalid AOV type \"%s\"!", item[1]);
             }
@@ -217,6 +238,27 @@ public:
                     *aovs++ = si.duv_dy.x();
                     *aovs++ = si.duv_dy.y();
                     break;
+
+                case Type::Roughness:
+                    *aovs++ = si.bsdf()->get_alpha(si);
+                    break;
+
+                case Type::SGBSDF: {
+
+                    auto val = si.bsdf()->get_sg_bsdf(si);
+
+                    *aovs++ = val.x();
+                    *aovs++ = val.y();
+                    *aovs++ = val.z();
+                    break;
+                }
+                
+                case Type::wi: 
+                    *aovs++ = si.wi.x();
+                    *aovs++ = si.wi.y();
+                    *aovs++ = si.wi.z(); 
+                    break;
+                
 
                 case Type::IntegratorRGBA: {
                         std::pair<Spectrum, Mask> result_sub =
