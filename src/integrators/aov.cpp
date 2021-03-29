@@ -78,8 +78,8 @@ public:
         dPdV,
         dUVdx,
         dUVdy,
-        SGBSDF,
         Roughness,
+        SGBSDF,
         wi,
         IntegratorRGBA
     };
@@ -133,23 +133,19 @@ public:
                 m_aov_types.push_back(Type::dUVdy);
                 m_aov_names.push_back(item[0] + ".U");
                 m_aov_names.push_back(item[0] + ".V");
-
+            } else if (item[1] == "Roughness") {
+                m_aov_types.push_back(Type::Roughness);
+                m_aov_names.push_back(item[0]);
             } else if (item[1] == "SGBSDF") {
                 m_aov_types.push_back(Type::SGBSDF);
                 m_aov_names.push_back(item[0] + ".X");
                 m_aov_names.push_back(item[0] + ".Y");
-                m_aov_names.push_back(item[0] + ".Z");
-            } else if (item[1] == "Roughness") {
-                m_aov_types.push_back(Type::Roughness);
-                m_aov_names.push_back(item[0]);
                 m_aov_names.push_back(item[0] + ".Z");
             } else if (item[1] == "wi") {
                     m_aov_types.push_back(Type::wi);
                     m_aov_names.push_back(item[0] + ".X");
                     m_aov_names.push_back(item[0] + ".Y");
                     m_aov_names.push_back(item[0] + ".Z");
-
-
             } else {
                 Throw("Invalid AOV type \"%s\"!", item[1]);
             }
@@ -185,6 +181,7 @@ public:
         std::pair<Spectrum, Mask> result { 0.f, false };
 
         SurfaceInteraction3f si = scene->ray_intersect(ray, active);
+        SurfaceInteraction3f full_si = si;
         si[!si.is_valid()] = zero<SurfaceInteraction3f>();
         size_t ctr = 0;
 
@@ -239,17 +236,16 @@ public:
                     *aovs++ = si.duv_dy.y();
                     break;
 
-                case Type::Roughness:
+                case Type::Roughness: { 
                     *aovs++ = si.bsdf()->get_alpha(si);
                     break;
+                }
 
                 case Type::SGBSDF: {
-
-                    auto val = si.bsdf()->get_sg_bsdf(si);
-
-                    *aovs++ = val.x();
-                    *aovs++ = val.y();
-                    *aovs++ = val.z();
+                    auto val =  si.bsdf()->get_sg_bsdf(si);
+                    *aovs++  = val.x();
+                    *aovs++  = val.y();
+                    *aovs++  = val.z();
                     break;
                 }
                 

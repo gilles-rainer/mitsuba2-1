@@ -421,7 +421,7 @@ public:
         return oss.str();
     }
 
-    Color3f get_sg_bsdf(SurfaceInteraction3f &si) const {
+    Color3f get_sg_bsdf(const SurfaceInteraction3f &si) const {
 
         Vector3f wo = reflect(si.wi);
 
@@ -456,7 +456,7 @@ public:
         return (F * result) & active;
     }
 
-    Float get_alpha(SurfaceInteraction3f &si) const {
+    Float get_alpha(const SurfaceInteraction3f &si) const {
         return m_alpha_u->eval_1(si, true);
     }
 
