@@ -73,15 +73,6 @@ MTS_PY_EXPORT(Bitmap) {
             return bitmap;
         }), "array"_a, "pixel_format"_a = py::none(), "Initialize a Bitmap from a NumPy array")
         .def(py::init<const Bitmap &>())
-        .def(
-            "data_np",
-            [](Bitmap &bitmap) -> py::array_t<float> {
-                return py::array({ (int) bitmap.size().y(),
-                                   (int) bitmap.size().x(),
-                                   (int) bitmap.channel_count() },
-                                 (float *) bitmap.data());
-            },
-            "Initialize a NumPy array from a Bitmap")
         .def_method(Bitmap, pixel_format)
         .def_method(Bitmap, component_format)
         .def_method(Bitmap, size)

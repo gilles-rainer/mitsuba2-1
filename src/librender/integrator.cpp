@@ -37,9 +37,6 @@ MTS_VARIANT SamplingIntegrator<Float, Spectrum>::SamplingIntegrator(const Proper
 
     /// Disable direct visibility of emitters if needed
     m_hide_emitters = props.bool_("hide_emitters", false);
-
-    // Custom parameter to disable anti-aliasing
-    m_sample_image_plane = props.bool_("sample_image_plane", true);
 }
 
 MTS_VARIANT SamplingIntegrator<Float, Spectrum>::~SamplingIntegrator() { }
@@ -243,13 +240,7 @@ SamplingIntegrator<Float, Spectrum>::render_sample(const Scene *scene,
                                                    const Vector2f &pos,
                                                    ScalarFloat diff_scale_factor,
                                                    Mask active) const {
-    Vector2f position_sample = pos;
-
-    if (m_sample_image_plane)
-        position_sample = position_sample + sampler->next_2d(active);
-    else
-        position_sample = position_sample + Point2f(0.5f, 0.5f);
-
+    Vector2f position_sample = pos + sampler->next_2d(active);
 
     Point2f aperture_sample(.5f);
     if (sensor->needs_aperture_sample())

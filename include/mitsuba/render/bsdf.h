@@ -414,7 +414,7 @@ public:
     // -----------------------------------------------------------------------
 
 	// For deep learning to access BSDF parameters
-	virtual Float get_alpha(const SurfaceInteraction3f &si) const { return 1.f; }
+	virtual Float get_alpha(const SurfaceInteraction3f &si) const { return 0.f; }
     virtual Color3f get_sg_bsdf(const SurfaceInteraction3f &si) const {
         return Color3f(0.f, 0.f, 0.f);
     }

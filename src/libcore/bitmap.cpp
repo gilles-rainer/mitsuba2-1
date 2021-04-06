@@ -420,58 +420,40 @@ void Bitmap::convert(Bitmap *target) const {
 
         if (suffix == "R") {
             if (source_is_xyz) {
-                field.name = prefix + "X";
-                continue; 
+                field.blend = {
+                    {  3.240479f, prefix + "X" },
+                    { -1.537150f, prefix + "Y" },
+                    { -0.498535f, prefix + "Z" }
+                };
+                continue;
             } else if (source_is_y) {
                 field.name = prefix + "Y";
                 continue;
             }
         } else if (suffix == "G") {
             if (source_is_xyz) {
-                field.name = prefix + "Y";
-                continue; 
+                field.blend = {
+                    { -0.969256, prefix + "X" },
+                    {  1.875991, prefix + "Y" },
+                    {  0.041556, prefix + "Z" }
+                };
+                continue;
             } else if (source_is_y) {
                 field.name = prefix + "Y";
                 continue;
             }
         } else if (suffix == "B") {
             if (source_is_xyz) {
-                field.name = prefix + "Z";
-                continue; 
+                field.blend = {
+                    {  0.055648, prefix + "X" },
+                    { -0.204043, prefix + "Y" },
+                    {  1.057311, prefix + "Z" }
+                };
+                continue;
             } else if (source_is_y) {
                 field.name = prefix + "Y";
                 continue;
             }
-           /* if (suffix == "R") {
-                if (source_is_xyz) {
-                    field.blend = { { 3.240479f, prefix + "X" },
-                                    { -1.537150f, prefix + "Y" },
-                                    { -0.498535f, prefix + "Z" } };
-                    continue;
-                } else if (source_is_y) {
-                    field.name = prefix + "Y";
-                    continue;
-                }
-            } else if (suffix == "G") {
-                if (source_is_xyz) {
-                    field.blend = { { -0.969256, prefix + "X" },
-                                    { 1.875991, prefix + "Y" },
-                                    { 0.041556, prefix + "Z" } };
-                    continue;
-                } else if (source_is_y) {
-                    field.name = prefix + "Y";
-                    continue;
-                }
-            } else if (suffix == "B") {
-                if (source_is_xyz) {
-                    field.blend = { { 0.055648, prefix + "X" },
-                                    { -0.204043, prefix + "Y" },
-                                    { 1.057311, prefix + "Z" } };
-                    continue;
-                } else if (source_is_y) {
-                    field.name = prefix + "Y";
-                    continue;
-                }*/
         } else if (suffix == "X") {
             if (source_is_rgb) {
                 field.blend = {

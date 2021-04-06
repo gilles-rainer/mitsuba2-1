@@ -180,7 +180,7 @@ public:
 
         std::pair<Spectrum, Mask> result { 0.f, false };
 
-        SurfaceInteraction3f si = scene->ray_intersect(ray, active); 
+        SurfaceInteraction3f si = scene->ray_intersect(ray, active);
         SurfaceInteraction3f full_si = si;
         si[!si.is_valid()] = zero<SurfaceInteraction3f>();
         size_t ctr = 0;
@@ -237,9 +237,7 @@ public:
                     break;
 
                 case Type::Roughness: { 
-                    *aovs++ = select(full_si.is_valid(),
-                                     full_si.bsdf()->get_alpha(full_si), 1.f);
-                    //                    si.bsdf()->get_alpha(si);
+                    *aovs++ = si.bsdf()->get_alpha(si);
                     break;
                 }
 

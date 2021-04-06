@@ -197,8 +197,6 @@ protected:
 
     /// Flag for disabling direct visibility of emitters
     bool m_hide_emitters;
-
-    bool m_sample_image_plane;
 };
 
 /*
