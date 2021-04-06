@@ -139,9 +139,7 @@ public:
     }
 
     Color3f get_sg_bsdf(const SurfaceInteraction3f &si) const {
-        auto si_copy = si;
-        si_copy.wi   = Vector3f(0.0, 0.0, 1.0);
-        return m_reflectance->eval(si_copy, true) * math::InvPi<Float>;
+        return m_reflectance->eval(si, true) * math::InvPi<Float>;
     }
 
     Float get_alpha(const SurfaceInteraction3f &si) const {
