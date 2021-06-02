@@ -421,7 +421,11 @@ public:
         return oss.str();
     }
 
-    Color3f get_sg_bsdf(const SurfaceInteraction3f &si) const {
+    Color3f get_sg_diffuse_bsdf(const SurfaceInteraction3f &si) const {
+        return 0.0f;
+    }
+
+    Color3f get_sg_specular_bsdf(const SurfaceInteraction3f &si) const {
 
         Vector3f wo = reflect(si.wi);
 

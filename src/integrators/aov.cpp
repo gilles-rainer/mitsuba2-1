@@ -79,7 +79,8 @@ public:
         dUVdx,
         dUVdy,
         Roughness,
-        SGBSDF,
+        SGDiffuse,
+        SGSpecular,
         wi,
         IntegratorRGBA
     };
@@ -136,8 +137,13 @@ public:
             } else if (item[1] == "Roughness") {
                 m_aov_types.push_back(Type::Roughness);
                 m_aov_names.push_back(item[0]);
-            } else if (item[1] == "SGBSDF") {
-                m_aov_types.push_back(Type::SGBSDF);
+            } else if (item[1] == "SGDiffuse") {
+                m_aov_types.push_back(Type::SGDiffuse);
+                m_aov_names.push_back(item[0] + ".X");
+                m_aov_names.push_back(item[0] + ".Y");
+                m_aov_names.push_back(item[0] + ".Z");
+            } else if (item[1] == "SGSpecular") {
+                m_aov_types.push_back(Type::SGSpecular);
                 m_aov_names.push_back(item[0] + ".X");
                 m_aov_names.push_back(item[0] + ".Y");
                 m_aov_names.push_back(item[0] + ".Z");
@@ -237,14 +243,21 @@ public:
                     break;
 
                 case Type::Roughness: { 
-                    *aovs++ = select(full_si.is_valid(),
-                                     full_si.bsdf()->get_alpha(full_si), 1.f);
-                    //                    si.bsdf()->get_alpha(si);
+                    //*aovs++ = select(full_si.is_valid(),
+                                     //full_si.bsdf()->get_alpha(full_si), 1.f);
+                    *aovs++ = si.bsdf()->get_alpha(si);
                     break;
                 }
 
-                case Type::SGBSDF: {
-                    auto val =  si.bsdf()->get_sg_bsdf(si);
+                case Type::SGDiffuse: {
+                    auto val =  si.bsdf()->get_sg_diffuse_bsdf(si);
+                    *aovs++  = val.x();
+                    *aovs++  = val.y();
+                    *aovs++  = val.z();
+                    break;
+                }
+                case Type::SGSpecular: {
+                    auto val = si.bsdf()->get_sg_specular_bsdf(si);
                     *aovs++  = val.x();
                     *aovs++  = val.y();
                     *aovs++  = val.z();

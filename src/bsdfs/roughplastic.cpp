@@ -296,6 +296,71 @@ public:
         return select(active, unpolarized<Spectrum>(result), 0.f);
     }
 
+    Color3f get_sg_diffuse_bsdf(const SurfaceInteraction3f &si) const {
+
+        Vector3f wo       = reflect(si.wi);
+
+        Float cos_theta_i = Frame3f::cos_theta(si.wi),
+              cos_theta_o = Frame3f::cos_theta(wo);
+
+        Mask active = cos_theta_i > 0.f && cos_theta_o > 0.f;
+        UnpolarizedSpectrum result(0.f);
+
+        Float t_i = lerp_gather(m_external_transmittance.data(), cos_theta_i,
+                                MTS_ROUGH_TRANSMITTANCE_RES, active),
+              t_o = lerp_gather(m_external_transmittance.data(), cos_theta_o,
+                                MTS_ROUGH_TRANSMITTANCE_RES, active);
+
+        UnpolarizedSpectrum diff = m_diffuse_reflectance->eval(si, active);
+        diff /=
+            1.f - (m_nonlinear ? (diff * m_internal_reflectance)
+                               : UnpolarizedSpectrum(m_internal_reflectance));
+
+        result +=
+            diff * (math::InvPi<Float> * m_inv_eta_2 * cos_theta_o * t_i * t_o); 
+        return m_diffuse_reflectance-> eval(si, true) * math::InvPi<Float>;
+    }
+
+    Color3f get_sg_specular_bsdf(const SurfaceInteraction3f &si) const {
+
+        Vector3f wo       = reflect(si.wi);
+
+        Float cos_theta_i = Frame3f::cos_theta(si.wi),
+              cos_theta_o = Frame3f::cos_theta(wo);
+
+        Mask active = cos_theta_i > 0.f && cos_theta_o > 0.f;
+
+        MicrofacetDistribution distr(m_type, m_alpha, m_sample_visible);
+
+        UnpolarizedSpectrum result(0.f);
+
+        // Calculate the reflection half-vector
+        Vector3f H = normalize(wo + si.wi);
+
+        // Fresnel term
+        Float F = std::get<0>(fresnel(dot(si.wi, H), Float(m_eta)));
+
+        // Smith's shadow-masking function
+        Float G = distr.G(si.wi, wo, H);
+
+        // Calculate the specular reflection component
+        UnpolarizedSpectrum value = F * G / (4.f * cos_theta_i);
+
+        if (m_specular_reflectance)
+            value *= m_specular_reflectance->eval(si, active);
+
+        result += value; 
+        return select(active, unpolarized<Spectrum>(result), 0.f);
+    }
+
+    Float get_alpha(const SurfaceInteraction3f &si) const {
+            return m_alpha;
+        }
+
+
+
+
+
     Float lerp_gather(const scalar_t<Float> *data, Float x, size_t size,
                       Mask active = true) const {
         using UInt = uint_array_t<Float>;

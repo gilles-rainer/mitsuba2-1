@@ -415,7 +415,10 @@ public:
 
 	// For deep learning to access BSDF parameters
 	virtual Float get_alpha(const SurfaceInteraction3f &si) const { return 0.f; }
-    virtual Color3f get_sg_bsdf(const SurfaceInteraction3f &si) const {
+    virtual Color3f get_sg_diffuse_bsdf(const SurfaceInteraction3f &si) const {
+        return Color3f(0.f, 0.f, 0.f);
+    }
+    virtual Color3f get_sg_specular_bsdf(const SurfaceInteraction3f &si) const {
         return Color3f(0.f, 0.f, 0.f);
     }
 	
@@ -531,7 +534,8 @@ ENOKI_CALL_SUPPORT_METHOD(sample)
 ENOKI_CALL_SUPPORT_METHOD(eval)
 ENOKI_CALL_SUPPORT_METHOD(eval_null_transmission)
 ENOKI_CALL_SUPPORT_METHOD(pdf)
-ENOKI_CALL_SUPPORT_METHOD(get_sg_bsdf)
+ENOKI_CALL_SUPPORT_METHOD(get_sg_diffuse_bsdf)
+ENOKI_CALL_SUPPORT_METHOD(get_sg_specular_bsdf)
 ENOKI_CALL_SUPPORT_METHOD(get_alpha)
 ENOKI_CALL_SUPPORT_GETTER(flags, m_flags)
 

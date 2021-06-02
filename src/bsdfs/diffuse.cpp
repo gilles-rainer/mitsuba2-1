@@ -138,9 +138,14 @@ public:
         callback->put_object("reflectance", m_reflectance.get());
     }
 
-    Color3f get_sg_bsdf(const SurfaceInteraction3f &si) const {
+    Color3f get_sg_diffuse_bsdf(const SurfaceInteraction3f &si) const {
         return m_reflectance->eval(si, true) * math::InvPi<Float>;
     }
+
+    Color3f get_sg_specular_bsdf(const SurfaceInteraction3f &si) const {
+        return 0.0f;
+    }
+    
 
     Float get_alpha(const SurfaceInteraction3f &si) const {
         return 1.0f;

@@ -194,6 +194,19 @@ public:
         return oss.str();
     }
 
+    Color3f get_sg_diffuse_bsdf(const SurfaceInteraction3f &si) const {
+        return m_brdf[0]->get_sg_diffuse_bsdf(si);
+    }
+
+    Color3f get_sg_specular_bsdf(const SurfaceInteraction3f &si) const {
+        return m_brdf[0]->get_sg_specular_bsdf(si);
+    }
+
+    Float get_alpha(const SurfaceInteraction3f &si) const {
+        return m_brdf[0]->get_alpha(si);
+    }
+
+
     MTS_DECLARE_CLASS()
 protected:
     ref<Base> m_brdf[2];
